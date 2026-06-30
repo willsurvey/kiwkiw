@@ -73,32 +73,8 @@ export default function VideoPlayer({ channel }: VideoPlayerProps) {
     }
 
     if (type === 'hls') {
-      // Check for native HLS support (like Safari)
-      if (video.canPlayType('application/x-mpegURL') || video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = streamUrl;
-        
-        const handleCanPlay = () => {
-          setLoading(false);
-          video.play().catch(e => {
-            console.log('Autoplay HLS blocked or failed:', e);
-          });
-        };
-
-        const handleVideoError = () => {
-          setLoading(false);
-          setError('Gagal memuat HLS stream via native player.');
-        };
-
-        video.addEventListener('canplay', handleCanPlay);
-        video.addEventListener('error', handleVideoError);
-
-        return () => {
-          video.removeEventListener('canplay', handleCanPlay);
-          video.removeEventListener('error', handleVideoError);
-        };
-      } 
-      // Fallback to Hls.js
-      else if (Hls.isSupported()) {
+      // Prioritize Hls.js (reliable for Android Chrome, Desktop browsers, etc.)
+      if (Hls.isSupported()) {
         const hls = new Hls({
           maxMaxBufferLength: 10,
           enableWorker: true,
@@ -143,6 +119,30 @@ export default function VideoPlayer({ channel }: VideoPlayerProps) {
             hlsRef.current.destroy();
             hlsRef.current = null;
           }
+        };
+      } 
+      // Fallback to native HLS support (like Safari on iOS, which lacks MSE/Hls.js support)
+      else if (video.canPlayType('application/x-mpegURL') || video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = streamUrl;
+        
+        const handleCanPlay = () => {
+          setLoading(false);
+          video.play().catch(e => {
+            console.log('Autoplay HLS blocked or failed:', e);
+          });
+        };
+
+        const handleVideoError = () => {
+          setLoading(false);
+          setError('Gagal memuat HLS stream via native player.');
+        };
+
+        video.addEventListener('canplay', handleCanPlay);
+        video.addEventListener('error', handleVideoError);
+
+        return () => {
+          video.removeEventListener('canplay', handleCanPlay);
+          video.removeEventListener('error', handleVideoError);
         };
       } else {
         setLoading(false);
