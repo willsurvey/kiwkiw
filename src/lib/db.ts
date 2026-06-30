@@ -1,4 +1,3 @@
-import { supabase, isSupabaseConfigured } from './supabase';
 import { detectStreamType } from './utils';
 
 export interface Channel {
@@ -103,137 +102,121 @@ function saveLocalStorageChannels(channels: Channel[]) {
 }
 
 export async function getChannels(): Promise<Channel[]> {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('channels')
-        .select('*')
-        .order('name', { ascending: true });
-        
-      if (error) {
-        console.error('Supabase getChannels error, falling back to localStorage:', error);
-        return getLocalStorageChannels();
-      }
-      return data || [];
-    } catch (e) {
-      console.error('Supabase fetch failed, falling back to localStorage:', e);
+  try {
+    const res = await fetch('/api/channels');
+    if (!res.ok) throw new Error('API request failed');
+    
+    const result = await res.json();
+    if (result.fallback) {
+      console.warn('API returned fallback mode, using localStorage:', result.error);
       return getLocalStorageChannels();
     }
+    
+    return result.data || [];
+  } catch (e) {
+    console.error('Failed to fetch from API, falling back to localStorage:', e);
+    return getLocalStorageChannels();
   }
-  
-  return getLocalStorageChannels();
 }
 
 export async function addChannel(channelData: Omit<Channel, 'id' | 'created_at'>): Promise<Channel> {
-  const streamType = detectStreamType(channelData.stream_url);
-  
-  const newChannel: Channel = {
-    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
-    name: channelData.name,
-    category: channelData.category,
-    stream_url: channelData.stream_url,
-    stream_type: streamType,
-    logo_url: channelData.logo_url || `https://images.unsplash.com/photo-1542204172-e7052809a86e?w=120&h=120&fit=crop`,
-    status: channelData.status,
-    created_at: new Date().toISOString()
-  };
-
-  if (isSupabaseConfigured && supabase) {
-    try {
-      // Omit id if Supabase uses auto-generated UUID
-      const { data, error } = await supabase
-        .from('channels')
-        .insert([{
-          name: newChannel.name,
-          category: newChannel.category,
-          stream_url: newChannel.stream_url,
-          stream_type: newChannel.stream_type,
-          logo_url: newChannel.logo_url,
-          status: newChannel.status
-        }])
-        .select();
-
-      if (error) {
-        console.error('Supabase addChannel error, saving to localStorage:', error);
-      } else if (data && data[0]) {
-        return data[0] as Channel;
+  try {
+    const res = await fetch('/api/channels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(channelData)
+    });
+    
+    if (res.ok) {
+      const result = await res.json();
+      if (result.data) {
+        return result.data as Channel;
       }
-    } catch (e) {
-      console.error('Supabase insert failed, saving to localStorage:', e);
     }
+    throw new Error('API request failed');
+  } catch (e) {
+    console.error('Failed to add channel via API, saving to localStorage:', e);
+    
+    // Fallback to localStorage
+    const streamType = detectStreamType(channelData.stream_url);
+    const newChannel: Channel = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
+      name: channelData.name,
+      category: channelData.category,
+      stream_url: channelData.stream_url,
+      stream_type: streamType,
+      logo_url: channelData.logo_url || `https://images.unsplash.com/photo-1542204172-e7052809a86e?w=120&h=120&fit=crop`,
+      status: channelData.status,
+      created_at: new Date().toISOString()
+    };
+    
+    const channels = getLocalStorageChannels();
+    channels.push(newChannel);
+    saveLocalStorageChannels(channels);
+    return newChannel;
   }
-
-  // Fallback to localStorage
-  const channels = getLocalStorageChannels();
-  channels.push(newChannel);
-  saveLocalStorageChannels(channels);
-  return newChannel;
 }
 
 export async function updateChannel(id: string, channelData: Partial<Channel>): Promise<Channel> {
-  if (channelData.stream_url) {
-    channelData.stream_type = detectStreamType(channelData.stream_url);
-  }
-
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('channels')
-        .update(channelData)
-        .eq('id', id)
-        .select();
-
-      if (error) {
-        console.error('Supabase updateChannel error, updating in localStorage:', error);
-      } else if (data && data[0]) {
-        return data[0] as Channel;
+  try {
+    const res = await fetch('/api/channels', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...channelData })
+    });
+    
+    if (res.ok) {
+      const result = await res.json();
+      if (result.data) {
+        return result.data as Channel;
       }
-    } catch (e) {
-      console.error('Supabase update failed, updating in localStorage:', e);
     }
+    throw new Error('API request failed');
+  } catch (e) {
+    console.error('Failed to update channel via API, updating in localStorage:', e);
+    
+    // Fallback to localStorage
+    if (channelData.stream_url) {
+      channelData.stream_type = detectStreamType(channelData.stream_url);
+    }
+    const channels = getLocalStorageChannels();
+    const index = channels.findIndex(c => c.id === id);
+    if (index === -1) {
+      throw new Error('Channel not found');
+    }
+    const updatedChannel = {
+      ...channels[index],
+      ...channelData,
+    } as Channel;
+    channels[index] = updatedChannel;
+    saveLocalStorageChannels(channels);
+    return updatedChannel;
   }
-
-  // Fallback to localStorage
-  const channels = getLocalStorageChannels();
-  const index = channels.findIndex(c => c.id === id);
-  if (index === -1) {
-    throw new Error('Channel not found');
-  }
-
-  const updatedChannel = {
-    ...channels[index],
-    ...channelData,
-  } as Channel;
-
-  channels[index] = updatedChannel;
-  saveLocalStorageChannels(channels);
-  return updatedChannel;
 }
 
 export async function deleteChannel(id: string): Promise<boolean> {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { error } = await supabase
-        .from('channels')
-        .delete()
-        .eq('id', id);
-
-      if (error) {
-        console.error('Supabase deleteChannel error, deleting from localStorage:', error);
-      } else {
+  try {
+    const res = await fetch(`/api/channels?id=${id}`, {
+      method: 'DELETE'
+    });
+    
+    if (res.ok) {
+      const result = await res.json();
+      if (result.success) {
         return true;
       }
-    } catch (e) {
-      console.error('Supabase delete failed, deleting from localStorage:', e);
     }
+    throw new Error('API request failed');
+  } catch (e) {
+    console.error('Failed to delete channel via API, deleting from localStorage:', e);
+    
+    // Fallback to localStorage
+    const channels = getLocalStorageChannels();
+    const filtered = channels.filter(c => c.id !== id);
+    if (channels.length === filtered.length) {
+      return false;
+    }
+    saveLocalStorageChannels(filtered);
+    return true;
   }
-
-  // Fallback to localStorage
-  const channels = getLocalStorageChannels();
-  const filtered = channels.filter(c => c.id !== id);
-  if (channels.length === filtered.length) {
-    return false;
-  }
-  saveLocalStorageChannels(filtered);
-  return true;
 }
