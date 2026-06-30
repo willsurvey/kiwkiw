@@ -160,10 +160,6 @@ export default function Home() {
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>
                       <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">ONLINE / LIVE</span>
-                    </div>
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-neutral-900 text-neutral-400 text-xs font-mono break-all select-all">
-                    URL Stream: {activeChannel.stream_url}
                   </div>
                 </div>
               )}
