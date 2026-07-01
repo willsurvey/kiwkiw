@@ -6,7 +6,7 @@
  * - .mp4 (and other common formats) -> mp4
  * - default -> iframe
  */
-export function detectStreamType(url: string): 'youtube' | 'hls' | 'mp4' | 'iframe' {
+export function detectStreamType(url: string): 'youtube' | 'hls' | 'mp4' | 'iframe' | 'dash' {
   if (!url) return 'iframe';
   
   const cleanUrl = url.trim().toLowerCase();
@@ -23,6 +23,11 @@ export function detectStreamType(url: string): 'youtube' | 'hls' | 'mp4' | 'ifra
   // HLS detection
   if (cleanUrl.includes('.m3u8')) {
     return 'hls';
+  }
+
+  // MPEG-DASH detection
+  if (cleanUrl.includes('.mpd')) {
+    return 'dash';
   }
   
   // MP4/Direct Video detection

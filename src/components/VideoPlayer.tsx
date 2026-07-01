@@ -13,6 +13,7 @@ interface VideoPlayerProps {
 export default function VideoPlayer({ channel }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const dashRef = useRef<any>(null);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +38,12 @@ export default function VideoPlayer({ channel }: VideoPlayerProps) {
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
+    }
+
+    // Clean up existing Dash instance
+    if (dashRef.current) {
+      dashRef.current.destroy();
+      dashRef.current = null;
     }
 
     if (!video) {
@@ -149,6 +156,35 @@ export default function VideoPlayer({ channel }: VideoPlayerProps) {
         setError('Browser Anda tidak mendukung pemutaran video HLS (.m3u8).');
       }
     }
+
+    if (type === 'dash') {
+      import('dashjs').then(({ MediaPlayer }) => {
+        const player = MediaPlayer().create();
+        dashRef.current = player;
+        player.initialize(video, streamUrl, true);
+        
+        player.on('canPlay', () => {
+          setLoading(false);
+        });
+
+        player.on('error', (e: any) => {
+          console.error('Dash.js error:', e);
+          setLoading(false);
+          setError('Gagal memuat streaming MPEG-DASH (.mpd).');
+        });
+      }).catch(err => {
+        console.error('Failed to load dashjs:', err);
+        setLoading(false);
+        setError('Gagal memuat modul player MPEG-DASH.');
+      });
+
+      return () => {
+        if (dashRef.current) {
+          dashRef.current.destroy();
+          dashRef.current = null;
+        }
+      };
+    }
   }, [channel, key]);
 
   // If no channel is selected
@@ -209,6 +245,7 @@ export default function VideoPlayer({ channel }: VideoPlayerProps) {
         );
 
       case 'hls':
+      case 'dash':
       case 'mp4':
         return (
           <div className="relative w-full h-full bg-black">

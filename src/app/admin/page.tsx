@@ -283,6 +283,8 @@ export default function AdminDashboard() {
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${
                             channel.stream_type === 'hls'
                               ? 'bg-emerald-950/30 text-emerald-400 border-emerald-900/50'
+                              : channel.stream_type === 'dash'
+                              ? 'bg-cyan-950/30 text-cyan-400 border-cyan-900/50'
                               : channel.stream_type === 'youtube'
                               ? 'bg-rose-950/30 text-rose-400 border-rose-900/50'
                               : 'bg-indigo-950/30 text-indigo-400 border-indigo-900/50'

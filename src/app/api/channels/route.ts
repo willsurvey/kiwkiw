@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { detectStreamType } from '@/lib/utils';
 
 // Initialize Supabase on the server-side (where process.env.SUPABASE_URL is accessible)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -11,21 +12,6 @@ const supabase = isConfigured
   ? createClient(supabaseUrl!, supabaseAnonKey!) 
   : null;
 
-// Helper to detect stream type
-function detectStreamType(url: string): 'youtube' | 'hls' | 'mp4' | 'iframe' {
-  if (!url) return 'iframe';
-  const cleanUrl = url.trim().toLowerCase();
-  if (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be') || cleanUrl.includes('youtube-nocookie.com')) {
-    return 'youtube';
-  }
-  if (cleanUrl.includes('.m3u8')) {
-    return 'hls';
-  }
-  if (cleanUrl.includes('.mp4') || cleanUrl.includes('.webm') || cleanUrl.includes('.ogg') || cleanUrl.includes('.mov')) {
-    return 'mp4';
-  }
-  return 'iframe';
-}
 
 // GET: Fetch all channels
 export async function GET() {

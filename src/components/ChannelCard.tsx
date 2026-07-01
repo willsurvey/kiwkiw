@@ -14,6 +14,7 @@ export default function ChannelCard({ channel, isSelected, onSelect }: ChannelCa
   const getStreamTypeLabel = (type: string) => {
     switch (type) {
       case 'hls': return 'HLS';
+      case 'dash': return 'DASH';
       case 'mp4': return 'Direct';
       case 'youtube': return 'YouTube';
       default: return 'Embed';
@@ -72,6 +73,8 @@ export default function ChannelCard({ channel, isSelected, onSelect }: ChannelCa
           <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border uppercase ${
             channel.stream_type === 'hls' 
               ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/50' 
+              : channel.stream_type === 'dash'
+              ? 'bg-cyan-950/40 text-cyan-400 border-cyan-800/50'
               : channel.stream_type === 'youtube'
               ? 'bg-rose-950/40 text-rose-400 border-rose-800/50'
               : 'bg-indigo-950/40 text-indigo-400 border-indigo-800/50'

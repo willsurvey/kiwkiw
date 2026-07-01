@@ -5,7 +5,7 @@ export interface Channel {
   name: string;
   category: string;
   stream_url: string;
-  stream_type: 'hls' | 'iframe' | 'mp4' | 'youtube';
+  stream_type: 'hls' | 'iframe' | 'mp4' | 'youtube' | 'dash';
   logo_url?: string;
   status: 'active' | 'inactive';
   created_at?: string;
@@ -70,6 +70,16 @@ export const SEED_CHANNELS: Channel[] = [
     stream_url: 'https://giphy.com/embed/3o72F8tGPvK4QQMtmM',
     stream_type: 'iframe',
     logo_url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=120&h=120&fit=crop',
+    status: 'active',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'seed-dash',
+    name: 'DASH-IF Live Sim (MPEG-DASH)',
+    category: 'Test',
+    stream_url: 'https://livesim.dashif.org/livesim/testpic_2s/Manifest.mpd',
+    stream_type: 'dash',
+    logo_url: 'https://images.unsplash.com/photo-1516280440614-37939bbacd6a?w=120&h=120&fit=crop',
     status: 'active',
     created_at: new Date().toISOString()
   }
