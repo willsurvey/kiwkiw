@@ -16,8 +16,11 @@ export default function VideoPlayer({ channel }: VideoPlayerProps) {
   const dashRef = useRef<any>(null);
   
   const [loading, setLoading] = useState(false);
+  const [buffering, setBuffering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [key, setKey] = useState(0); // Used to force reload the player
+  const networkRetryCount = useRef(0);
+  const maxNetworkRetries = 5;
 
   const handleRetry = () => {
     setError(null);
@@ -83,12 +86,49 @@ export default function VideoPlayer({ channel }: VideoPlayerProps) {
       // Prioritize Hls.js (reliable for Android Chrome, Desktop browsers, etc.)
       if (Hls.isSupported()) {
         const hls = new Hls({
-          maxMaxBufferLength: 10,
           enableWorker: true,
-          lowLatencyMode: true,
+          progressive: true,              // Download segment secara progressive (lebih efisien)
+
+          // === BUFFER — MAKSIMALKAN untuk tahan drop ke 1 Mbps ===
+          lowLatencyMode: false,          // MATIKAN — prioritas stabilitas
+          maxBufferLength: 60,            // Target buffer 60 detik
+          maxMaxBufferLength: 120,        // Maksimal buffer 120 detik (2 menit!)
+          maxBufferSize: 120 * 1000 * 1000, // 120 MB buffer size
+          maxBufferHole: 1.5,             // Toleransi gap 1.5 detik
+          backBufferLength: 15,           // Hemat RAM untuk forward-buffer
+
+          // === LIVE STREAM — mundur lebih jauh dari live edge ===
+          liveSyncDurationCount: 5,       // Mulai 5 segment (50 detik) di belakang live edge
+          liveMaxLatencyDurationCount: 15, // Izinkan hingga 150 detik di belakang sebelum seek
+          liveBackBufferLength: 15,       // Back-buffer live 15 detik
+
+          // === ABR — super konservatif ===
+          startLevel: 0,                  // Mulai dari kualitas terendah
+          abrEwmaDefaultEstimate: 1_000_000, // Estimasi awal 1 Mbps
+          abrBandWidthFactor: 0.6,        // Gunakan hanya 60% bandwidth terukur
+          abrBandWidthUpFactor: 0.4,      // Naik kualitas SANGAT hati-hati
+          abrEwmaFastLive: 3,
+          abrEwmaSlowLive: 9,
+
+          // === FRAGMENT LOADING — timeout & retry BESAR ===
+          fragLoadingTimeOut: 60000,       // 60 detik timeout
+          fragLoadingMaxRetry: 8,          // Retry fragment 8x
+          fragLoadingRetryDelay: 2000,
+          fragLoadingMaxRetryTimeout: 120000,
+
+          // === MANIFEST LOADING ===
+          manifestLoadingTimeOut: 30000,
+          manifestLoadingMaxRetry: 6,
+          manifestLoadingRetryDelay: 2000,
+
+          // === LEVEL/PLAYLIST LOADING ===
+          levelLoadingTimeOut: 30000,
+          levelLoadingMaxRetry: 6,
+          levelLoadingRetryDelay: 2000,
         });
         
         hlsRef.current = hls;
+        networkRetryCount.current = 0;
         hls.loadSource(streamUrl);
         hls.attachMedia(video);
 
@@ -99,13 +139,32 @@ export default function VideoPlayer({ channel }: VideoPlayerProps) {
           });
         });
 
+        // Deteksi buffering lewat event video
+        const handleWaiting = () => setBuffering(true);
+        const handlePlaying = () => setBuffering(false);
+        const handleCanPlay = () => setBuffering(false);
+        video.addEventListener('waiting', handleWaiting);
+        video.addEventListener('playing', handlePlaying);
+        video.addEventListener('canplay', handleCanPlay);
+
         hls.on(Hls.Events.ERROR, (event, data) => {
           console.error('Hls.js error:', data);
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                console.log('Fatal network error, trying to recover...');
-                hls.startLoad();
+                if (networkRetryCount.current < maxNetworkRetries) {
+                  networkRetryCount.current++;
+                  console.log(`Fatal network error, retrying... (${networkRetryCount.current}/${maxNetworkRetries})`);
+                  setTimeout(() => {
+                    hls.startLoad();
+                  }, 2000 * networkRetryCount.current);
+                } else {
+                  setLoading(false);
+                  setBuffering(false);
+                  setError('Koneksi terputus setelah beberapa kali percobaan. Periksa koneksi internet Anda lalu tekan Coba Lagi.');
+                  hls.destroy();
+                  hlsRef.current = null;
+                }
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
                 console.log('Fatal media error, trying to recover...');
@@ -113,6 +172,7 @@ export default function VideoPlayer({ channel }: VideoPlayerProps) {
                 break;
               default:
                 setLoading(false);
+                setBuffering(false);
                 setError('Gagal memuat streaming HLS. Stream tidak dapat diakses.');
                 hls.destroy();
                 hlsRef.current = null;
@@ -122,6 +182,9 @@ export default function VideoPlayer({ channel }: VideoPlayerProps) {
         });
 
         return () => {
+          video.removeEventListener('waiting', handleWaiting);
+          video.removeEventListener('playing', handlePlaying);
+          video.removeEventListener('canplay', handleCanPlay);
           if (hlsRef.current) {
             hlsRef.current.destroy();
             hlsRef.current = null;
@@ -263,6 +326,14 @@ export default function VideoPlayer({ channel }: VideoPlayerProps) {
                 <div className="flex flex-col items-center gap-3">
                   <Loader2 size={36} className="text-indigo-500 animate-spin" />
                   <span className="text-sm text-neutral-300 font-medium">Memuat siaran...</span>
+                </div>
+              </div>
+            )}
+            {buffering && !loading && (
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
+                <div className="flex flex-col items-center gap-2 px-4 py-3 rounded-xl bg-black/70 backdrop-blur-sm border border-neutral-700">
+                  <Loader2 size={28} className="text-amber-400 animate-spin" />
+                  <span className="text-xs text-neutral-300 font-medium">Buffering...</span>
                 </div>
               </div>
             )}
